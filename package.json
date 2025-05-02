@@ -1,0 +1,51 @@
+{
+  "name": "@frontendonly/api-testing",
+  "version": "0.0.1",
+  "description": "API testing module to validate the functionality, reliability, and performance of RESTful APIs by automating request and response verification.",
+  "main": "index.js",
+  "type": "module",
+  "files": [
+    "core",
+    "index.js"
+  ],
+  "scripts": {
+    "start": "node index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/frontendonly/api-testing.git"
+  },
+  "keywords": [
+    "api-testing",
+    "api",
+    "testing",
+    "automation",
+    "rest",
+    "rest-api",
+    "http",
+    "request",
+    "response",
+    "validation",
+    "integration-testing",
+    "functional-testing",
+    "endpoint-testing",
+    "postman",
+    "mock",
+    "contract-testing",
+    "performance-testing",
+    "nodejs",
+    "javascript"
+  ],
+  "author": "frontendonly",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/frontendonly/api-testing/issues"
+  },
+  "homepage": "https://github.com/frontendonly/api-testing#readme",
+  "dependencies": {
+    "lighthouse": "^12.3.0",
+    "minimist": "^1.2.8",
+    "node-fetch": "^3.3.2"
+  }
+}
