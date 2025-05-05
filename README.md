@@ -9,14 +9,14 @@ API-Testing is a simple and effective package designed to help developers config
   Creates a sample API-testing configuration file named `api-testing.json` for the specified application. This file serves as a template to define your API test cases.
 
    ```bash
-   atof init test-app --swagger.url='' --swagger.startsWith='/api'
+   foat init test-app --swagger.url='' --swagger.startsWith='/api'
    ```
 
 - **run <testFilePath>**  
   Runs all configured test cases as defined in the specified `api-testing.json` file. This command executes the tests and helps you validate your API endpoints efficiently.
 
   ```bash
-   atof run [Optional <testFilePath>]
+   foat run [Optional <testFilePath>] [--concurrent.rampup=1] [--concurrent.every=1000] [--concurrent.max=10]
   ```
 
 ## Installation

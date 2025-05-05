@@ -17,8 +17,12 @@ try {
         
         runner.apply(AgentRunnerApiTesting, otherArgs);
     } else {
-        console.log(`No command found for: ${commandName}`);
-        console.log(`Available commands are: init <name> [--swagger.url='' --swager.startsWith='/api'] | run<appName>`);
+        console.log(`No command found for: ${commandName || 'unknown'}`);
+        console.log([
+            `Available commands are:`,
+            "foat init <name> [--swagger.url=''] [--swager.startsWith='/api']",
+            'foat run <testFilePath>'
+        ].join('\n'));
     }
 } catch (e) {    
     console.log(`Unable to process the request`);    

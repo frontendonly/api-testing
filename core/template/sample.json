@@ -10,6 +10,12 @@
             "path": ""
         }
     },
+    "concurrent": {
+        "enabled": false,
+        "rampup": 1,
+        "every" : 1000,
+        "max": 1000
+    },
     "defaultContext": {
        "env": "local",
         "contextName": "CONTEXT_VALUE",

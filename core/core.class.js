@@ -25,18 +25,28 @@ export class AgentRunnerApiTesting {
         }
     }
 
-    static run(fileName) {
-        const agentRunnerApiTesting = new this(fileName);
-        agentRunnerApiTesting._run();
+    /**
+     * 
+     * @param {*} filePath 
+     * @param {*} concurrent 
+     * @returns 
+     */
+    static run(filePath  = "api-testing.json", concurrent) {
+        if (!fs.existsSync(filePath)) {
+           return console.log(`Unable to perform run action due to missing ${filePath} file`);
+        }
+
+        const agentRunnerApiTesting = new this(filePath);
+        agentRunnerApiTesting._run(concurrent);
     }
 
     processLog = [];
     context = {};
     testingData = null;
-    constructor(fileName = "api-testing.json") {
+    constructor(filePath) {
         console.log(`Retrieving Test File and initializing test suite`);
-        console.log(`Reading file ${fileName}`);
-        this.testingData = JSON.parse(fs.readFileSync(fileName));
+        console.log(`Reading file ${filePath}`);
+        this.testingData = JSON.parse(fs.readFileSync(filePath));
         // set the default context        
         this.setContext("currentDate", new Date().toLocaleDateString().split("/").reverse().join(""));
         this.setContext("currentTime", new Date().toLocaleTimeString());
@@ -49,21 +59,30 @@ export class AgentRunnerApiTesting {
     }
 
 
-    async _run() {
+    async _run(concurrent) {
         console.log(`Running ${this.testingData.name} cases`);
-        const specs = this.testingData.specs;
-        if (!specs.length) {
-            console.error(`No specs to run`);
+        if (!this.testingData.specs.length) {
+            console.error(`No specs to run!`);
             process.exit(0);
         }
-        const processNames = [];
-        const process = async () => {
+
+        const logObject = (msg) => ({
+            processed: [],
+            logs: [msg]
+        });
+
+        concurrent = concurrent || this.testingData.concurrent;
+        const process = async (specs, next, logObj) => {
             const action = specs.shift();
-            if (!action) return this.allDone();
+            if (!action) {
+                console.log(logObj.logs.join('\n'));
+                return next();
+            }
+
             if (!action.disabled) {
-                if (!processNames.includes(action.name)) {
-                    processNames.push(action.name)
-                    console.log(`Test<${action.name}>`);
+                if (!logObj.processed.includes(action.name)) {
+                    logObj.processed.push(action.name)
+                    logObj.logs.push(`Test<${action.name}>`);
                     this.processLog.push({
                         startTime: +new Date(),
                         name: action.name,
@@ -75,16 +94,54 @@ export class AgentRunnerApiTesting {
                 }
 
                 const startTime = +new Date;
-                const response = await this.fetch(action.request);
-                this.assert(action, response, startTime);
+                const response = await this.fetch(action.request, true, logObj);
+                this.assert(action, response, startTime, logObj);
             }
-            process();
+
+            process(specs, next, logObj);
         };
 
-        await process();
+        if (!concurrent?.enabled){
+            await process(this.testingData.specs.slice(), () => this.allDone(), logObject(`Running 1 of 1 concurrent session.`));
+        } else {
+            // concurrent testing enabled
+            console.log(`Performing  ${concurrent.max * concurrent.rampup} concurrent user sessions, ramping ${concurrent.rampup} users every ${concurrent.every / 1000} second(s) `);
+            let totalSessions = concurrent.max;
+            let allProcessed = 0;
+            let totalRan = 0;
+            await new Promise((resolve) => {
+                const next  = () => {
+                    ++allProcessed;
+                    if ((concurrent.max * concurrent.rampup) == allProcessed){
+                        resolve();
+                        this.allDone();
+                    }
+                };
+
+                const intervalId = setInterval(() => {
+                    if (totalSessions){
+                        for (let i = 0; i<concurrent.rampup; i++){
+                            totalRan++;
+                            process(this.testingData.specs.slice(), next, logObject(`Running ${totalRan} of ${(concurrent.max * concurrent.rampup)} concurrent session`));
+                        }
+
+                        totalSessions--;
+                    } else {
+                        clearInterval(intervalId);
+                    }
+                }, concurrent.every || 1000);
+            });
+        } 
     }
 
-    async fetch(req, withContextPath = true) {
+    /**
+     * 
+     * @param {*} req 
+     * @param {*} withContextPath 
+     * @param {*} logObj 
+     * @returns 
+     */
+    async fetch(req, withContextPath = true, logObj) {
         const env = this.testingData.envs[this.context.env];
         let url = withContext(`${env.host}${withContextPath ? env.contextPath : ""}${req.path || ""}`, this.context);
         this.processBeforeRequest(req);
@@ -101,17 +158,21 @@ export class AgentRunnerApiTesting {
         }
         // perform request
         let statusCode = 200;
+        let connectionLost = false;
         const response = await fetch(url, req.conf)
-            .catch((err) => console.log(`${err}\n`))
+            .catch((err) => {
+                logObj.logs.push(`${err}\n`);
+                connectionLost = err.contains(ECONNRESET);
+            })
             .then((res) => {
-                statusCode = res.status;
                 try {
+                    statusCode = res?.status || 500;
                     return res.json();
                 } catch (e) { }
                 finally { }
             });
 
-        return { statusCode, data : response || { message: 'Failed to process request' } };
+        return { statusCode, data : response || { message: 'Failed to process request' }, connectionLost };
     }
 
     allDone() {
@@ -132,14 +193,15 @@ export class AgentRunnerApiTesting {
      * @param {*} action 
      * @param {*} response 
      * @param {*} startTime 
+     * @param {*} logObj 
      */
-    assert(action, response, startTime) {
+    assert(action, response, startTime, logObj) {
         let allPassed = true;
         // evaluate success conditions        
         if (Array.isArray(action.test)) {
             for (const test of action.test) {
                 const passed = evaluateExpression(test, response, this.context);
-                console.log(`\t<${passed ? "Passed" : "Failed"}> ${test.title} `);
+                logObj.logs.push(`\t<${passed ? "Passed" : "Failed"}> ${test.title} `);
                 if (!passed) {
                     allPassed = false;
                 }
