@@ -2,39 +2,42 @@
 
 API-Testing is a simple and effective package designed to help developers configure and run API test cases easily. It streamlines the process of setting up API tests and executing them based on predefined configurations.
 
+
 ## Features
 
 - **init <appName>**  
   Creates a sample API-testing configuration file named `api-testing.json` for the specified application. This file serves as a template to define your API test cases.
 
+   ```bash
+   atof init test-app --swagger.url='' --swagger.startsWith='/api'
+   ```
+
 - **run <testFilePath>**  
   Runs all configured test cases as defined in the specified `api-testing.json` file. This command executes the tests and helps you validate your API endpoints efficiently.
 
-## Installation
+  ```bash
+   atof run [Optional <testFilePath>]
+  ```
 
+## Installation
 To install the API-Testing package, use npm:
 
 ```bash
-npm install -g api-testing
+npm install -g @frontendonly/api-testing
 ```
 
 ## Sample Configurarion
 ```json
 {
    "name": "My Application",
-   "swagger": {
-      "enabled": false,
-      "path": "/v3/api-docs",
-      "startsWith": ""
-   },
    "envs": {
       "local": {
          "host": "https://localhost:8080",
-         "path": "/api"
+         "contextPath": "/api"
       },
       "prod": {
          "host": "https://api.frontendonly.com",
-         "path": ""
+         "contextPath": ""
       }
    },
    "defaultContext": {
@@ -42,7 +45,7 @@ npm install -g api-testing
       "contextName": "CONTEXT_VALUE",
       "dynamicContext": "FO_%$.contextName%"
    },
-   "actions": [
+   "specs": [
       {
          "name": "Test Login",
          "request": {
@@ -67,13 +70,13 @@ npm install -g api-testing
          "store": [
             {
                "key": "accessToken",
-               "value": "$.accessToken"
+               "value": "$.data.accessToken"
             }
          ],
          "test": [
             {
                "title": "User able to login with correct credentials",
-               "key": "$.accessToken",
+               "key": "$.data.accessToken",
                "operator": "def"
             }
          ]
@@ -115,3 +118,4 @@ npm install -g api-testing
 **notdef (not defined)**  
    Checks if the first value (`a`) is `undefined`.  
    *Usage:* `operators.notdef(undefined)` returns `true`.
+

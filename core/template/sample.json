@@ -1,0 +1,47 @@
+{
+    "name": "My Application",
+    "envs": {
+        "local": {
+            "host": "https://localhost:8080",
+            "path": "/api"
+        },
+        "prod": {
+            "host": "https://api.frontendonly.com",
+            "path": ""
+        }
+    },
+    "defaultContext": {
+       "env": "local",
+        "contextName": "CONTEXT_VALUE",
+        "dynamicContext": "FO_%$.contextName%"
+    },
+    "specs": [{
+        "name": "Test Login",
+        "request": {
+            "path": "/user/authorize",
+            "conf": {
+                "method": "POST",
+                "body": {}
+            },
+            "beforeRequest": {
+                "requestDataMapping": [{
+                    "key": "email",
+                    "value": "email"
+                },
+                {
+                    "key": "password",
+                    "value": "pwd"
+                }]
+            }
+        },
+        "store": [{
+            "key": "accessToken",
+            "value": "$.accessToken"
+        }],
+        "test": [{
+            "title": "User able to login with correct credentials",
+            "key": "$.accessToken",
+            "operator": "def"
+        }]
+    }]
+}

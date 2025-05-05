@@ -1,6 +1,6 @@
 {
   "name": "@frontendonly/api-testing",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "API testing module to validate the functionality, reliability, and performance of RESTful APIs by automating request and response verification.",
   "main": "index.js",
   "type": "module",
@@ -43,7 +43,7 @@
     "url": "https://github.com/frontendonly/api-testing/issues"
   },
   "bin": {
-    "fo-api-testing": "index.js"
+    "atof": "index.js"
   },
   "homepage": "https://github.com/frontendonly/api-testing#readme",
   "dependencies": {

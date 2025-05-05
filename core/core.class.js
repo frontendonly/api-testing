@@ -1,67 +1,31 @@
 import fetch from "node-fetch";
 import fs from "fs";
-import { evaluateExpression, evaluateExpressions, getContext, withContext} from "./utils.js";
+import path from 'path';
+import { evaluateExpression, evaluateExpressions, getContext, withContext } from "./utils.js";
 
 export class AgentRunnerApiTesting {
-    static init(name){
-        const apiJsonSample = {
-            name: name || 'My Application',
-            swagger: {
-                enabled: false,
-                path: '/v3/api-docs',
-                startsWith: ''
-            },
-            envs: {
-                local: {
-                    host: 'https://localhost:8080',
-                    path: '/api'
-                },
-                prod: {
-                    host: 'https://api.frontendonly.com',
-                    path: ''
-                }
-            },
-            defaultContext: {
-                env: 'local',
-                contextName: 'CONTEXT_VALUE',
-                dynamicContext: 'FO_%$.contextName%'
-            },
-            actions: [{
-                name: "Test Login",
-                request: {
-                    path: '/user/authorize',
-                    conf: {
-                        method: 'POST',
-                        body: {}
-                    },
-                    beforeRequest: {
-                        requestDataMapping: [{
-                            key: "email",
-                            value: "email"
-                        },
-                        {
-                            key: "password",
-                            value: "pwd"
-                        }]
-                    }
-                },
-                store: [{
-                    key: "accessToken",
-                    value: "$.accessToken"
-                }],
-                test: [{
-                    title: "User able to login with correct credentials",
-                    key: "$.accessToken",
-                    operator: "def"
-                }]
-            }]
-        };
+    static async init(name, config) {
+        if (!name || typeof name !== 'string') {
+            return console.log(`Name is required`);
+        }
 
-        // generate a sample test case
-        fs.writeFileSync('api-testing.json', JSON.stringify(apiJsonSample, null, 3));
+        try {
+            const apiJson = JSON.parse(fs.readFileSync(path.resolve('core/template/sample.json')));
+            // load from swagger url
+            if (config.swagger && config.swagger) {
+                // write the swaggerConfig to apiJson 
+                await this.loadSwaggerDocs(config.swagger, apiJson);
+            }
+
+            // generate a sample test case
+            console.log(`Saving generated configuration to api-testing.json`);
+            fs.writeFileSync('api-testing.json', JSON.stringify(Object.assign(apiJson, { name }), null, 3));
+        } catch (e) {
+            console.log(e);
+        }
     }
 
-    static run(fileName){
+    static run(fileName) {
         const agentRunnerApiTesting = new this(fileName);
         agentRunnerApiTesting._run();
     }
@@ -69,7 +33,7 @@ export class AgentRunnerApiTesting {
     processLog = [];
     context = {};
     testingData = null;
-    constructor(fileName = "api-testing.json"){
+    constructor(fileName = "api-testing.json") {
         console.log(`Retrieving Test File and initializing test suite`);
         console.log(`Reading file ${fileName}`);
         this.testingData = JSON.parse(fs.readFileSync(fileName));
@@ -86,31 +50,33 @@ export class AgentRunnerApiTesting {
 
 
     async _run() {
-        const swaggerConfig = this.testingData.swagger;
-        if (swaggerConfig && swaggerConfig.enabled) {
-            console.log(`Swagger loader enabled`);
-            await this.loadSwaggerDocs(swaggerConfig);
-        }
         console.log(`Running ${this.testingData.name} cases`);
-        const actions = this.testingData.actions;
-        if (!actions.length) {
-            console.error(`No actions to run`);
+        const specs = this.testingData.specs;
+        if (!specs.length) {
+            console.error(`No specs to run`);
             process.exit(0);
         }
+        const processNames = [];
         const process = async () => {
-            const action = actions.shift();
+            const action = specs.shift();
             if (!action) return this.allDone();
             if (!action.disabled) {
-                console.log(`Test<${action.name}>`);
-                this.processLog.push({
-                    startTime: +new Date(),
-                    name: action.name,
-                    passed: false,
-                    payload: action.body,
-                    childProcess: [],
-                });
+                if (!processNames.includes(action.name)) {
+                    processNames.push(action.name)
+                    console.log(`Test<${action.name}>`);
+                    this.processLog.push({
+                        startTime: +new Date(),
+                        name: action.name,
+                        passed: 0,
+                        failed: 0,
+                        payload: action.body,
+                        requests: [],
+                    });
+                }
+
+                const startTime = +new Date;
                 const response = await this.fetch(action.request);
-                this.assert(action, response);
+                this.assert(action, response, startTime);
             }
             process();
         };
@@ -120,7 +86,7 @@ export class AgentRunnerApiTesting {
 
     async fetch(req, withContextPath = true) {
         const env = this.testingData.envs[this.context.env];
-        let url = withContext(`${env.host}${withContextPath ? env.context : ""}${req.path || ""}`, this.context);
+        let url = withContext(`${env.host}${withContextPath ? env.contextPath : ""}${req.path || ""}`, this.context);
         this.processBeforeRequest(req);
         if ((req.conf.method || 'GET').toLowerCase() == 'post') {
             req.conf.body = JSON.stringify(req.conf.body);
@@ -133,32 +99,47 @@ export class AgentRunnerApiTesting {
             // remove the body prop            
             delete req.conf.body;
         }
-        // perform request        
+        // perform request
+        let statusCode = 200;
         const response = await fetch(url, req.conf)
             .catch((err) => console.log(`${err}\n`))
             .then((res) => {
+                statusCode = res.status;
                 try {
                     return res.json();
                 } catch (e) { }
+                finally { }
             });
-        return response;
+
+        return { statusCode, data : response || { message: 'Failed to process request' } };
     }
 
     allDone() {
+        console.log(`\n\t------------------------`);
         console.log(
             this.processLog
-                .map((item) => (`\n<${item.passed ? 'Passed' : 'Failed'}> : ${item.name}\nRequest took ${item.took}\n${!item.passed ? JSON.stringify(item.error, null, 3) : ''}`
-                )).join('n')
+                .map((item) => [`\n${item.name} :  Passed<${item.passed}> Failed<${item.failed}>`,
+                    '------------------------------',
+                item.requests.map(req => `${req.api} : <${req.passed ? 'Passed' : 'Failed'}> \n Request took ${req.took}ms\n${!req.passed ? JSON.stringify(req.error, null, 3) : ''}`).join('\n------------------------------\n')
+                ].join('\n')
+                ).join('\n')
         );
         console.log(`All Done, please check logs`);
     }
-    assert(action, response) {
+
+    /**
+     * 
+     * @param {*} action 
+     * @param {*} response 
+     * @param {*} startTime 
+     */
+    assert(action, response, startTime) {
         let allPassed = true;
         // evaluate success conditions        
         if (Array.isArray(action.test)) {
             for (const test of action.test) {
                 const passed = evaluateExpression(test, response, this.context);
-                console.log(`t<${passed ? "Passed" : "Failed"}> ${test.title} `);
+                console.log(`\t<${passed ? "Passed" : "Failed"}> ${test.title} `);
                 if (!passed) {
                     allPassed = false;
                 }
@@ -168,18 +149,20 @@ export class AgentRunnerApiTesting {
         // save context for next request        
         if (allPassed && action.store) {
             for (const store of action.store) {
-                const value = store.value ? getContext(store.value, response) : response;
+                const value = store.value ? getContext(store.value, response.data) : response.data;
                 this.setContext(store.key, value);
             }
         }
         const current = this.processLog[this.processLog.length - 1];
         if (current) {
-            current.passed = allPassed;
-            current.endTime = +new Date();
-            current.took = current.endTime - current.startTime;
-            if (!allPassed) {
-                current.error = response || {message: 'Failed to process request'};
-            }
+            if (allPassed) current.passed++;
+            else current.failed++;
+            current.requests.push({
+                api: `${action.request.conf.method.toUpperCase()}${action.request.path}`,
+                passed: allPassed,
+                took: +new Date() - startTime,
+                error: (!allPassed ? response : null)
+            });
         }
     }
 
@@ -215,15 +198,24 @@ export class AgentRunnerApiTesting {
         }
     }
 
-    async loadSwaggerDocs(swaggerConfig) {
+    /**
+     * @param {*} swaggerConfig 
+     * {
+     *   url: 'https://url_to_swagger',
+     *   startsWith: 'api/'
+     * }
+     * @param {*} apiJson 
+     */
+    static async loadSwaggerDocs(swaggerConfig, apiJson) {
         console.log(`Loading swagger docs`);
-        const swaggerDocs = await this.fetch(swaggerConfig, false);
-        if (swaggerDocs) {
-            console.log(`${swaggerDocs.info.title}`);
-            console.log(`${swaggerDocs.info.description}`);
+        const swaggerDocs = await fetch(swaggerConfig.url).then(r => r.json());
+        if (!swaggerDocs) {
+            console.log(`Unable to load swagger docs from ${swaggerConfig.url}`);
+            return;
         }
 
-        const defaultContext = {};
+        console.log(`${swaggerDocs.info.title}`);
+        console.log(`${swaggerDocs.info.description || 'No description'}`);
         const putContext = (name, type) => {
             const types = {
                 string: "",
@@ -231,7 +223,8 @@ export class AgentRunnerApiTesting {
                 object: {},
                 number: 0
             };
-            defaultContext[name] = types[type];
+            // set the context
+            apiJson.defaultContext[name] = types[type];
         };
 
         const getRequestMapping = (req) => {
@@ -245,7 +238,9 @@ export class AgentRunnerApiTesting {
                         };
                     });
             } else if (req.requestBody) {
-                const schemaPath = `$.${req.requestBody.content["application/json"].schema.$ref.substr(2).replaceAll("/", ".")}`;
+                const contentType = Object.keys(req.requestBody.content).find(type => type.includes("application/json"));
+                if (!contentType) return [];
+                const schemaPath = `$.${req.requestBody.content[contentType].schema.$ref.substr(2).replaceAll("/", ".")}`;
                 const schema = getContext(schemaPath, swaggerDocs);
                 return Object.keys(schema?.properties || {}).map((name) => {
                     putContext(name, schema.properties[name].type);
@@ -257,29 +252,34 @@ export class AgentRunnerApiTesting {
             }
         };
 
-        const actions = Object.keys(swaggerDocs.paths).reduce((accum, path) => {
-            if (!swaggerConfig.startsWith || path.startsWith(swaggerConfig.startsWith)) {
-                Object.keys(swaggerDocs.paths[path]).forEach((method) => {
-                    const req = swaggerDocs.paths[path][method];
-                    path = path.replaceAll(/{(.*)}/g, (a, b) => `%$.${b}%`);
-                    accum.push({
+        // empty specs
+        apiJson.specs = [];
+        for (let cpath of Object.keys(swaggerDocs.paths)) {
+            if (!swaggerConfig.startsWith || cpath.startsWith(swaggerConfig.startsWith)) {
+                for (const method in swaggerDocs.paths[cpath]) {
+                    console.log(`Writting ${method}${cpath}`)
+                    const req = swaggerDocs.paths[cpath][method];
+                    // push the new config to our spec
+                    apiJson.specs.push({
                         name: req.name || req.tags[0],
                         request: {
-                            path: `${path}`,
+                            path: cpath.replaceAll(/{(.*)}/g, (a, b) => `%$.${b}%`),
                             conf: {
                                 method: method.toLocaleUpperCase()
                             },
                             beforeRequest: {
                                 requestDataMapping: getRequestMapping(req)
                             }
-                        }
+                        },
+                        spec: [{
+                            'title': 'StatusCode should be 200',
+                            key: "$.statusCode",
+                            operator: 'eq',
+                            value: 200
+                        }]
                     });
-                });
+                }
             }
-            return accum;
-        }, []);
-
-        console.log(JSON.stringify({ defaultContext, actions }, null, 3));
-        process.exit(0);
+        }
     }
 }

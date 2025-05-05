@@ -1,18 +1,26 @@
+#!/usr/bin/env node
 import minimist from 'minimist';
 const args = minimist(process.argv);
 import { AgentRunnerApiTesting } from "./core/core.class.js";
 const commandName = args._[2];
-let otherArgs = args._.splice(3);
-    // trigger testing
-    try {
-        const runner  = AgentRunnerApiTesting[commandName];
-        if (runner){
-            runner.apply(AgentRunnerApiTesting, otherArgs);
-        } else {
-            console.log(`No command found for: ${commandName}`);
-            console.log(`Available commands are: init<name> | run<appName>`);
+// trigger testing
+try {
+    const runner  = AgentRunnerApiTesting[commandName];
+    if (runner){
+        const ckeys = Object.keys(args);
+        const otherArgs = args._.slice(3);
+        if (ckeys.length > 1){
+            otherArgs.push(
+                ckeys.reduce((accum, k) => (((k !== '_') ? (accum[k] = args[k]) : null), accum), {})
+            );
         }
-    } catch (e) {    
-        console.log(`Unable to process the request`);    
-        process.exit(0);
+        
+        runner.apply(AgentRunnerApiTesting, otherArgs);
+    } else {
+        console.log(`No command found for: ${commandName}`);
+        console.log(`Available commands are: init <name> [--swagger.url='' --swager.startsWith='/api'] | run<appName>`);
     }
+} catch (e) {    
+    console.log(`Unable to process the request`);    
+    process.exit(0);
+}
