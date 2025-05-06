@@ -1,6 +1,6 @@
 {
   "name": "@frontendonly/api-testing",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "API testing module to validate the functionality, reliability, and performance of RESTful APIs by automating request and response verification.",
   "main": "index.js",
   "type": "module",
