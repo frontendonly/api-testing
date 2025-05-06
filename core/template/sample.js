@@ -1,4 +1,4 @@
-{
+export const apiJson = {
     "name": "My Application",
     "envs": {
         "local": {
@@ -9,6 +9,44 @@
             "host": "https://api.frontendonly.com",
             "path": ""
         }
+    },
+    "auth": {
+        "enable": false,
+        "failFast": true,
+        "request": {
+            url: "https://openid.frontendonly.com/oauth/token",
+            conf: {
+                "headers": {}
+            },
+            beforeRequest: {
+                requestDataMapping: [{
+                    "key": "grant_type",
+                    "value": "client_credentials"
+                },
+                {
+                    "key": "client_id",
+                    "value": "$.clientId"
+                },
+                {
+                    "key": "client_secret",
+                    "value": "$.clientSecret"
+                },
+                {
+                    "key": "scope",
+                    "value": "$.scope"
+                }]
+            }
+        },
+        store: [{
+            "key": "authCredential",
+            "value": "$.data"
+        }],
+        test: [{
+            "title": "Authentication",
+            "key": "statusCode",
+            "operator": "eq",
+            "value": 200
+        }]
     },
     "concurrent": {
         "enabled": false,

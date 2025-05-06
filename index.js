@@ -21,7 +21,7 @@ try {
         console.log([
             `Available commands are:`,
             "foat init <name> [--swagger.url=''] [--swager.startsWith='/api']",
-            'foat run <testFilePath>'
+            'foat run [Optional <testFilePath>] [--concurrent.rampup=1] [--concurrent.every=1000] [--concurrent.max=10] [--concurrent.enabled=false]'
         ].join('\n'));
     }
 } catch (e) {    

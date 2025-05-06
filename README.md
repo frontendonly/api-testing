@@ -16,7 +16,7 @@ API-Testing is a simple and effective package designed to help developers config
   Runs all configured test cases as defined in the specified `api-testing.json` file. This command executes the tests and helps you validate your API endpoints efficiently.
 
   ```bash
-   foat run [Optional <testFilePath>] [--concurrent.rampup=1] [--concurrent.every=1000] [--concurrent.max=10]
+   foat run [Optional <testFilePath>] [--concurrent.rampup=1] [--concurrent.every=1000] [--concurrent.max=10] [--concurrent.enabled=false]
   ```
 
 ## Installation
@@ -45,6 +45,9 @@ npm install -g @frontendonly/api-testing
       "contextName": "CONTEXT_VALUE",
       "dynamicContext": "FO_%$.contextName%"
    },
+   "auth": {
+      ...
+   }
    "specs": [
       {
          "name": "Test Login",
